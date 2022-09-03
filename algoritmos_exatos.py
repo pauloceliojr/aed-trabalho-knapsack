@@ -1,3 +1,6 @@
+import pandas
+
+
 class BruteForceKnapsack:
 
     def __init__(self, capacidade, itens):
@@ -43,55 +46,49 @@ class DynamicProgrammingKnapsack:
         self.itens = itens
 
     def print_selected_elements(self, dp, profits, weights, capacity):
-        print("Selected weights are: ", end='')
+        print("Selected weights are: ", end='\n')
         n = len(weights)
-        totalProfit = dp[0][capacity]
-        for i in range(n - 1):
-            if totalProfit == dp[i][capacity]:
-                print(str(weights[i]) + " ", end='')
+        totalProfit = dp[n - 1][capacity]
+        for i in range(n - 1, 0, -1):
+            if totalProfit != dp[i - 1][capacity]:
+                # print(str(weights[i]) + " ", end='')
+                print(self.itens.iloc[i])
                 capacity -= weights[i]
                 totalProfit -= profits[i]
-        # totalProfit = dp[n - 1][capacity + 1]
-        # for i in range(n - 1, 0, -1):
-        #     if totalProfit != dp[i - 1][capacity + 1]:
-        #         print(str(weights[i]) + " ", end='')
-        #         capacity -= weights[i]
-        #         totalProfit -= profits[i]
 
         if totalProfit != 0:
-            print(str(weights[0]) + " ", end='')
-        print()
+            # print(str(weights[0]) + " ", end='')
+            print(self.itens.iloc[0])
+        # print()
 
     def knapsack_recursive(self, dp, profits, weights, capacity, currentIndex):
 
         # base checks
-        if capacity <= 0 or currentIndex >= len(profits):
+        if capacity == 0 or currentIndex == 0:
             return 0
 
         # if we have already solved a similar problem, return the result from memory
-        if dp[currentIndex][capacity] != -1:
-            return dp[currentIndex][capacity]
+        if dp[currentIndex - 1][capacity] != -1:
+            return dp[currentIndex - 1][capacity]
 
         # recursive call after choosing the element at the currentIndex
         # if the weight of the element at currentIndex exceeds the capacity, we
         # shouldn't process this
-        profit1 = 0
-        if weights[currentIndex] <= capacity:
-            profit1 = profits[currentIndex] + self.knapsack_recursive(
-                dp, profits, weights, capacity - weights[currentIndex], currentIndex + 1)
+        if weights[currentIndex - 1] > capacity:
+            dp[currentIndex - 1][capacity] = self.knapsack_recursive(
+                dp, profits, weights, capacity, currentIndex - 1)
+        else:
+            # recursive call after excluding the element at the currentIndex
+            dp[currentIndex - 1][capacity] = max(self.knapsack_recursive(
+                dp, profits, weights, capacity, currentIndex - 1), profits[currentIndex - 1] + self.knapsack_recursive(
+                dp, profits, weights, capacity - weights[currentIndex - 1], currentIndex - 1))
 
-        # recursive call after excluding the element at the currentIndex
-        profit2 = self.knapsack_recursive(
-            dp, profits, weights, capacity, currentIndex + 1)
-
-        dp[currentIndex][capacity] = max(profit1, profit2)
-
-        return dp[currentIndex][capacity]
+        return dp[currentIndex - 1][capacity]
 
     def max(self):
         # create a two dimensional array for Memoization, each element is initialized to '-1'
         dp = [[-1 for x in range(self.capacidade + 1)] for y in range(len(self.itens))]
-        result = self.knapsack_recursive(dp, self.itens.valor.tolist(), self.itens.peso.tolist(), self.capacidade, 0)
+        result = self.knapsack_recursive(dp, self.itens.valor.tolist(), self.itens.peso.tolist(), self.capacidade, len(self.itens))
         self.print_selected_elements(dp, self.itens.valor.tolist(), self.itens.peso.tolist(), self.capacidade)
         return result
 
@@ -239,3 +236,31 @@ class BranchAndBoundKnapsack:
                     limitante_primal = node.valor
 
         return limitante_primal
+
+
+if __name__ == "__main__":
+    from datetime import datetime
+    import pandas as pd
+
+    # dados = {"valor": [60, 100, 120, 50],
+    #          "peso": [10, 20, 30, 50]}
+    # capacidade = 50
+
+    # dados = {"valor": [10, 21, 50, 51],
+    #          "peso": [2, 3, 5, 6]}
+    # capacidade = 7
+
+    # itens = pd.DataFrame(dados)
+
+    capacidade = 6200000 * 100
+    itens = pd.read_excel("proposicoes_STI_2023.xlsx", sheet_name="Tratado")
+    itens = itens.filter(["Ação", "GUT", "Unidade Total"]).rename(columns={"Ação": "acao", "GUT": "valor",
+                                                                           "Unidade Total": "peso_original"})
+    itens["peso"] = itens.peso_original * 100
+    itens["valor_por_peso"] = itens.valor / itens.peso
+
+    inicio_processamento = datetime.now()
+    knapsack = DynamicProgrammingKnapsack(capacidade, itens)
+    print(f"Valor máximo que obtemos = {knapsack.max() / 100}")
+    fim_processamento = datetime.now()
+    print("Tempo de processamento:", fim_processamento - inicio_processamento)
