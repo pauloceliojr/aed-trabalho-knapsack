@@ -42,15 +42,21 @@ class DynamicProgrammingKnapsack:
         self.capacidade = capacidade
         self.itens = itens
 
-    def print_selected_elements(self, dp, weights, profits, capacity):
+    def print_selected_elements(self, dp, profits, weights, capacity):
         print("Selected weights are: ", end='')
         n = len(weights)
-        totalProfit = dp[n-1][capacity]
-        for i in range(n-1, 0, -1):
-            if totalProfit != dp[i - 1][capacity]:
+        totalProfit = dp[0][capacity]
+        for i in range(n - 1):
+            if totalProfit == dp[i][capacity]:
                 print(str(weights[i]) + " ", end='')
                 capacity -= weights[i]
                 totalProfit -= profits[i]
+        # totalProfit = dp[n - 1][capacity + 1]
+        # for i in range(n - 1, 0, -1):
+        #     if totalProfit != dp[i - 1][capacity + 1]:
+        #         print(str(weights[i]) + " ", end='')
+        #         capacity -= weights[i]
+        #         totalProfit -= profits[i]
 
         if totalProfit != 0:
             print(str(weights[0]) + " ", end='')
@@ -86,7 +92,7 @@ class DynamicProgrammingKnapsack:
         # create a two dimensional array for Memoization, each element is initialized to '-1'
         dp = [[-1 for x in range(self.capacidade + 1)] for y in range(len(self.itens))]
         result = self.knapsack_recursive(dp, self.itens.valor.tolist(), self.itens.peso.tolist(), self.capacidade, 0)
-        print(self.print_selected_elements(dp, self.itens.valor.tolist(), self.itens.peso.tolist(), self.capacidade))
+        self.print_selected_elements(dp, self.itens.valor.tolist(), self.itens.peso.tolist(), self.capacidade)
         return result
 
 
