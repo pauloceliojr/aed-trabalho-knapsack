@@ -234,8 +234,9 @@ class BranchAndBoundKnapsack:
                     pq.inserir(filho2)
                 elif node.valor > limitante_primal:
                     limitante_primal = node.valor
+                    peso_maximo = node.peso
 
-        return limitante_primal
+        return limitante_primal, peso_maximo
 
 
 if __name__ == "__main__":
