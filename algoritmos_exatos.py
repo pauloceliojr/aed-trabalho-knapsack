@@ -32,7 +32,7 @@ class BruteForceKnapsack:
                 best_value = set_value
                 knapsack = item_set
         # return knapsack, best_weight, best_value
-        return best_value
+        return best_value, best_weight
 
 
 # A Dynamic Programming based Python
