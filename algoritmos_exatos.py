@@ -148,6 +148,9 @@ class BranchAndBoundKnapsack:
         self.valor_disponivel = valor_disponivel
         self.itens = itens.sort_values(by="importancia_por_valor", ascending=False) # pressupõe a ordenação decrescente
 
+    def __str__(self):
+        return "Branch and Bound"
+
     class PriorityQueue:
         def __init__(self):
             self.pqueue = []
@@ -267,7 +270,7 @@ class BranchAndBoundKnapsack:
     def _get_solucao(self, itens_selecionados=[]):
         solucao = np.repeat(0, len(self.itens))
 
-        if len(itens) > 0:
+        if len(itens_selecionados) > 0:
             for indice in itens_selecionados:
                 solucao[indice] = 1
 
@@ -305,34 +308,39 @@ class BranchAndBoundKnapsack:
 
 if __name__ == "__main__":
     from datetime import datetime
-    import pandas as pd
 
-    dados = {"importancia": [60, 100, 120, 50],
-             "valor": [10., 20., 30., 50.],
-             "selecionado": [0, 0, 0, 0]}
-    valor_disponivel = 50
+    # dados = {"importancia": [60, 100, 120, 50],
+    #          "valor": [10., 20., 30., 50.]}
+    # valor_disponivel = 50
 
     # dados = {"importancia": [10, 21, 50, 51],
-    #          "valor": [2., 3., 5., 6.],
-    #          "selecionado": [0, 0, 0, 0]}
+    #          "valor": [2., 3., 5., 6.]}
     # valor_disponivel = 7
 
-    itens = pd.DataFrame(dados)
+    # itens = pd.DataFrame(dados)
 
-    # valor_disponivel = 6200000
-    # itens = pd.read_excel("proposicoes_STI_2023.xlsx", sheet_name="Tratado")
-    # itens = itens.filter(["Ação", "GUT", "Unidade Total"]).rename(columns={"Ação": "acao", "GUT": "importancia",
-    #                                                                        "Unidade Total": "valor_original"})
-    # itens["valor"] = itens.valor_original
-
+    valor_disponivel = 6200000
+    itens = pd.read_excel("proposicoes_STI_2023.xlsx", sheet_name="Tratado")
+    itens = itens.filter(["Ação", "GUT", "Unidade Total"]).rename(columns={"Ação": "acao", "GUT": "importancia",
+                                                                           "Unidade Total": "valor"})
     itens["importancia_por_valor"] = itens.importancia / itens.valor
     itens["proporcao"] = 0
 
     inicio_processamento = datetime.now()
+    print("Início do processamento:", inicio_processamento)
+
     knapsack = BranchAndBoundKnapsack(valor_disponivel, itens)
-    importancia_maxima, valor_maximo, itens1 = knapsack.solucionar()
-    print(f"Importância máxima que obtemos = {importancia_maxima}")
-    print(f"Valor máximo que obtemos = {valor_maximo}")
-    print(itens1.query("selecionado == 1"))
+    itens1 = knapsack.solucionar()
+
     fim_processamento = datetime.now()
-    print("Tempo de processamento:", fim_processamento - inicio_processamento)
+    print("Fim do processamento:", fim_processamento)
+    print("Tempo de processamento:", fim_processamento - inicio_processamento, end="\n\n")
+
+    print("Algoritmo utilizado:", knapsack)
+    print(f"Importância máxima obtida: {itens1.query('proporcao == 1').importancia.sum()}")
+    print(f"Valor máximo obtido: {itens1.query('proporcao == 1').valor.sum()}", end="\n\n")
+
+    print("Itens escolhidos:")
+    print(itens1.query("proporcao == 1"), end="\n\n")
+    print("Itens rejeitados:")
+    print(itens1.query("proporcao == 0"))
