@@ -1,10 +1,17 @@
-import pandas
+"""Classes base para os algoritmos exatos."""
 
+# Author: Paulo Célio Júnior <pauloceliojr@gmail.com>
+
+import numpy as np
+import pandas as pd
 
 class BruteForceKnapsack:
-
-    def __init__(self, capacidade, itens):
-        self.capacidade = capacidade
+    """
+    Classe que implementa a solução de um Problema de Mochila Binária (0-1 Knapsack Problem) utilizando algoritmo
+    de força bruta.
+    """
+    def __init__(self, valor_disponivel, itens):
+        self.valor_disponivel = valor_disponivel
         self.itens = itens
 
     def _weight(self, item):
@@ -20,14 +27,14 @@ class BruteForceKnapsack:
             res.extend(newset)
         return res
 
-    def max(self):
+    def solucionar(self):
         knapsack = []
         best_weight = 0
         best_value = 0
-        for item_set in self._powerset(self.itens.filter(["peso", "valor"]).values.tolist()):
+        for item_set in self._powerset(self.itens.filter(["valor", "importancia"]).values.tolist()):
             set_weight = sum(map(self._weight, item_set))
             set_value = sum(map(self._value, item_set))
-            if set_value > best_value and set_weight <= self.capacidade:
+            if set_value > best_value and set_weight <= self.valor_disponivel:
                 best_weight = set_weight
                 best_value = set_value
                 knapsack = item_set
@@ -40,9 +47,13 @@ class BruteForceKnapsack:
 # Returns the maximum valor that can
 # be put in a knapsack of capacity capacidade
 class DynamicProgrammingKnapsack:
+    """
+    Classe que implementa a solução de um Problema de Mochila Binária (0-1 Knapsack Problem) usando algoritmos de Programação
+    Dinâmica.
+    """
 
-    def __init__(self, capacidade, itens):
-        self.capacidade = capacidade
+    def __init__(self, valor_disponivel, itens):
+        self.valor_disponivel = valor_disponivel
         self.itens = itens
 
     def _print_selected_elements(self, dp, profits, weights, capacity):
@@ -63,8 +74,7 @@ class DynamicProgrammingKnapsack:
             # print(self.itens.iloc[0])
         # print()
 
-    def _knapsack_topdown(self, dp, profits, weights, capacity, currentIndex):
-
+    def _dp_topdown(self, dp, profits, weights, capacity, currentIndex):
         # base checks
         if capacity == 0 or currentIndex == 0:
             return 0
@@ -77,12 +87,12 @@ class DynamicProgrammingKnapsack:
         # if the weight of the element at currentIndex exceeds the capacity, we
         # shouldn't process this
         if weights[currentIndex - 1] > capacity:
-            dp[currentIndex - 1][capacity] = self._knapsack_topdown(
+            dp[currentIndex - 1][capacity] = self._dp_topdown(
                 dp, profits, weights, capacity, currentIndex - 1)
         else:
             # recursive call after excluding the element at the currentIndex
-            dp[currentIndex - 1][capacity] = max(self._knapsack_topdown(
-                dp, profits, weights, capacity, currentIndex - 1), profits[currentIndex - 1] + self._knapsack_topdown(
+            dp[currentIndex - 1][capacity] = max(self._dp_topdown(
+                dp, profits, weights, capacity, currentIndex - 1), profits[currentIndex - 1] + self._dp_topdown(
                 dp, profits, weights, capacity - weights[currentIndex - 1], currentIndex - 1))
 
         return dp[currentIndex - 1][capacity]
@@ -92,10 +102,10 @@ class DynamicProgrammingKnapsack:
     # Program for 0-1 Knapsack problem
     # Returns the maximum value that can
     # be put in a knapsack of capacity W
-    def _knapsack_bottomup(self):
-        wt = self.itens.peso.tolist()
-        val = self.itens.valor.tolist()
-        W = self.capacidade
+    def _dp_bottomup(self):
+        wt = self.itens.valor.tolist()
+        val = self.itens.importancia.tolist()
+        W = self.valor_disponivel
         n = len(val)
 
         K = [[0 for x in range(W + 1)] for x in range(n + 1)]
@@ -116,14 +126,14 @@ class DynamicProgrammingKnapsack:
 
         return K[n][W]
 
-    def max(self, bottomup=True):
+    def solucionar(self, bottomup=True):
         if bottomup:
-            result = self._knapsack_bottomup()
+            result = self._dp_bottomup()
         else:
             # create a two dimensional array for Memoization, each element is initialized to '-1'
-            dp = [[-1 for x in range(self.capacidade + 1)] for y in range(len(self.itens))]
-            result = self._knapsack_topdown(dp, self.itens.valor.tolist(), self.itens.peso.tolist(), self.capacidade, len(self.itens))
-            self._print_selected_elements(dp, self.itens.valor.tolist(), self.itens.peso.tolist(), self.capacidade)
+            dp = [[-1 for x in range(self.valor_disponivel + 1)] for y in range(len(self.itens))]
+            result = self._dp_topdown(dp, self.itens.importancia.tolist(), self.itens.valor.tolist(), self.valor_disponivel, len(self.itens))
+            self._print_selected_elements(dp, self.itens.importancia.tolist(), self.itens.valor.tolist(), self.valor_disponivel)
         return result
 
 
@@ -134,9 +144,9 @@ class DynamicProgrammingKnapsack:
 #     the node with the highest limitante_dual valor is returned when removing from the priority queue.
 #     The best first approach arrives at an optimal solition faster than breadth first search.
 class BranchAndBoundKnapsack:
-    def __init__(self, capacidade, itens):
-        self.capacidade = capacidade
-        self.itens = itens.sort_values(by="valor_por_peso", ascending=False) # pressupõe a ordenação decrescente
+    def __init__(self, valor_disponivel, itens):
+        self.valor_disponivel = valor_disponivel
+        self.itens = itens.sort_values(by="importancia_por_valor", ascending=False) # pressupõe a ordenação decrescente
 
     class PriorityQueue:
         def __init__(self):
@@ -146,7 +156,7 @@ class BranchAndBoundKnapsack:
         def inserir(self, node):
             # Caso seja informado algum nó e o peso dos itens que o compõem esteja acima da capacidade máxima,
             # o nó não será adicionado na fila de prioridade (poda por inviabilidade)
-            if node is not None and not node.peso_acima_da_capacidade:
+            if node is not None and not node.valor_acima_do_disponivel:
                 i = 0
                 # Ordenação em ordem crescente da fila de acordo com limitante dual
                 while i < len(self.pqueue):
@@ -167,21 +177,21 @@ class BranchAndBoundKnapsack:
                 return node
 
     class Node:
-        def __init__(self, capacidade, itens):
-            self.capacidade = capacidade
+        def __init__(self, valor_disponivel, itens):
+            self.valor_disponivel = valor_disponivel
             self.itens = itens
             self.indice_fracionado = -1
             self.caminho = {}
             self._limitante_dual = -1
+            self._importancia = 0
             self._valor = 0
-            self._peso = 0
-            self._retorno = 0
+            self._itens_selecionados = []
 
         @property
         def limitante_dual(self):
             if self._limitante_dual == -1:
                 self._limitante_dual = 0
-                capacidade_restante = self.capacidade
+                valor_disponivel_restante = self.valor_disponivel
                 itens = self.itens.copy()
                 itens["obrigatorio"] = 0
                 if len(self.caminho) > 0:
@@ -199,27 +209,27 @@ class BranchAndBoundKnapsack:
                 # Aqui serão calculados: limitante dual, valor e peso
                 for indice, item in itens.iterrows():
                     # Adiciona os itens até antes de estourar a capacidade restante
-                    if item.peso <= capacidade_restante or item.obrigatorio:
-                        capacidade_restante -= item.peso
+                    if item.valor <= valor_disponivel_restante or item.obrigatorio:
+                        valor_disponivel_restante -= item.valor
+                        self._importancia += item.importancia
                         self._valor += item.valor
-                        self._peso += item.peso
-                        self._retorno += item.retorno
+                        self._itens_selecionados.append(indice)
                     # Se não pudar o item inteiro, adiciona a fração do peso
                     else:
-                        if capacidade_restante > 0:
+                        if valor_disponivel_restante > 0:
                             # Marcação de qual o índice do item fracionário para ramificação dos filhos
                             self.indice_fracionado = indice
-                            self._limitante_dual = capacidade_restante * item.valor_por_peso
+                            self._limitante_dual = valor_disponivel_restante * item.importancia_por_valor
                         break
 
-                self._limitante_dual += self._valor
+                self._limitante_dual += self._importancia
             return self._limitante_dual
 
         @property
-        def retorno(self):
+        def importancia(self):
             _ = self.limitante_dual
 
-            return self._retorno
+            return self._importancia
 
         @property
         def valor(self):
@@ -228,25 +238,25 @@ class BranchAndBoundKnapsack:
             return self._valor
 
         @property
-        def peso(self):
+        def itens_selecionados(self):
             _ = self.limitante_dual
 
-            return self._peso
+            return self._itens_selecionados
 
         @property
-        def peso_acima_da_capacidade(self):
-            return self.peso > self.capacidade
+        def valor_acima_do_disponivel(self):
+            return self.valor > self.valor_disponivel
 
         def ramificar(self):
             # Se existir índice de item com valor fracionado
             if self.indice_fracionado >= 0:
                 # definindo ramo xi <= 0
-                filho1 = BranchAndBoundKnapsack.Node(self.capacidade, self.itens)
+                filho1 = BranchAndBoundKnapsack.Node(self.valor_disponivel, self.itens)
                 filho1.caminho[self.indice_fracionado] = 0  # xi <= 0
                 filho1.caminho.update(self.caminho)
 
                 # definindo ramo xi >= 1
-                filho2 = BranchAndBoundKnapsack.Node(self.capacidade, self.itens)
+                filho2 = BranchAndBoundKnapsack.Node(self.valor_disponivel, self.itens)
                 filho2.caminho[self.indice_fracionado] = 1  # xi >= 1
                 filho2.caminho.update(self.caminho)
 
@@ -254,12 +264,21 @@ class BranchAndBoundKnapsack:
 
             return None, None
 
-    def max(self):
+    def _get_solucao(self, itens_selecionados=[]):
+        solucao = np.repeat(0, len(self.itens))
+
+        if len(itens) > 0:
+            for indice in itens_selecionados:
+                solucao[indice] = 1
+
+        return solucao
+
+    def solucionar(self):
         pq = self.PriorityQueue()
 
-        node = self.Node(self.capacidade, self.itens)
+        node = self.Node(self.valor_disponivel, self.itens)
         limitante_primal = 0  # Solução ótima encontrada. Neste caso, começa com zero.
-
+        itens_selecionados = []
         if node.limitante_dual > 0:
             pq.inserir(node)
 
@@ -274,38 +293,46 @@ class BranchAndBoundKnapsack:
 
                     pq.inserir(filho1)
                     pq.inserir(filho2)
-                elif node.valor > limitante_primal:
-                    limitante_primal = node.valor
-                    retorno_maximo = node.retorno
-                    peso_maximo = node.peso
+                elif node.importancia > limitante_primal:
+                    limitante_primal = node.importancia
+                    itens_selecionados = node.itens_selecionados
 
-        return retorno_maximo\
-            , peso_maximo
+        solucao = self._get_solucao(itens_selecionados)
+        self.itens["proporcao"] = pd.Series(solucao)
+
+        return self.itens
 
 
 if __name__ == "__main__":
     from datetime import datetime
     import pandas as pd
 
-    dados = {"valor": [60, 100, 120, 50],
-             "peso": [10, 20, 30, 50]}
-    capacidade = 50
+    dados = {"importancia": [60, 100, 120, 50],
+             "valor": [10., 20., 30., 50.],
+             "selecionado": [0, 0, 0, 0]}
+    valor_disponivel = 50
 
-    # dados = {"valor": [10, 21, 50, 51],
-    #          "peso": [2, 3, 5, 6]}
-    # capacidade = 7
+    # dados = {"importancia": [10, 21, 50, 51],
+    #          "valor": [2., 3., 5., 6.],
+    #          "selecionado": [0, 0, 0, 0]}
+    # valor_disponivel = 7
 
     itens = pd.DataFrame(dados)
 
-    # capacidade = 6200000 * 100
+    # valor_disponivel = 6200000
     # itens = pd.read_excel("proposicoes_STI_2023.xlsx", sheet_name="Tratado")
-    # itens = itens.filter(["Ação", "GUT", "Unidade Total"]).rename(columns={"Ação": "acao", "GUT": "valor",
-    #                                                                        "Unidade Total": "peso_original"})
-    # itens["peso"] = itens.peso_original * 100
-    itens["valor_por_peso"] = itens.valor / itens.peso
+    # itens = itens.filter(["Ação", "GUT", "Unidade Total"]).rename(columns={"Ação": "acao", "GUT": "importancia",
+    #                                                                        "Unidade Total": "valor_original"})
+    # itens["valor"] = itens.valor_original
+
+    itens["importancia_por_valor"] = itens.importancia / itens.valor
+    itens["proporcao"] = 0
 
     inicio_processamento = datetime.now()
-    knapsack = DynamicProgrammingKnapsack(capacidade, itens)
-    print(f"Valor máximo que obtemos = {knapsack.max(bottomup=False)}")
+    knapsack = BranchAndBoundKnapsack(valor_disponivel, itens)
+    importancia_maxima, valor_maximo, itens1 = knapsack.solucionar()
+    print(f"Importância máxima que obtemos = {importancia_maxima}")
+    print(f"Valor máximo que obtemos = {valor_maximo}")
+    print(itens1.query("selecionado == 1"))
     fim_processamento = datetime.now()
     print("Tempo de processamento:", fim_processamento - inicio_processamento)
