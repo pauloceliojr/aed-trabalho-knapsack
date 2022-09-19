@@ -59,12 +59,6 @@ class TabuSearchKnapsack:
     def _fitness(self, solucao):
         """
         Função objetivo de determinada solução.
-
-        :params: solucao : list
-        :params: item : list
-
-        :returns:
-        importancia_maxima : int
         """
         importancia_maxima = 0
         valor_maximo = 0

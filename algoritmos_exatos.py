@@ -5,47 +5,45 @@
 import numpy as np
 import pandas as pd
 
+
 class BruteForceKnapsack:
     """
     Classe que implementa a solução de um Problema de Mochila Binária (0-1 Knapsack Problem) utilizando algoritmo
     de força bruta.
     """
+
     def __init__(self, valor_disponivel, itens):
         self.valor_disponivel = valor_disponivel
         self.itens = itens
 
-    def _weight(self, item):
+    def _peso(self, item):
         return item[0]
 
-    def _value(self, item):
+    def _valor(self, item):
         return item[1]
 
     def _powerset(self, items):
         res = [[]]
         for item in items:
-            newset = [r+[item] for r in res]
-            res.extend(newset)
+            novoset = [r + [item] for r in res]
+            res.extend(novoset)
         return res
 
     def solucionar(self):
         knapsack = []
-        best_weight = 0
-        best_value = 0
+        melhor_valor = 0
+        melhor_importancia = 0
         for item_set in self._powerset(self.itens.filter(["valor", "importancia"]).values.tolist()):
-            set_weight = sum(map(self._weight, item_set))
-            set_value = sum(map(self._value, item_set))
-            if set_value > best_value and set_weight <= self.valor_disponivel:
-                best_weight = set_weight
-                best_value = set_value
+            set_valor = sum(map(self._peso, item_set))
+            set_importancia = sum(map(self._valor, item_set))
+            if set_importancia > melhor_importancia and set_valor <= self.valor_disponivel:
+                melhor_valor = set_valor
+                melhor_importancia = set_importancia
                 knapsack = item_set
-        # return knapsack, best_weight, best_value
-        return best_value, best_weight
+        print(knapsack)
+        return melhor_importancia, melhor_valor
 
 
-# A Dynamic Programming based Python
-# Program for 0-1 Knapsack problem
-# Returns the maximum valor that can
-# be put in a knapsack of capacity capacidade
 class DynamicProgrammingKnapsack:
     """
     Classe que implementa a solução de um Problema de Mochila Binária (0-1 Knapsack Problem) usando algoritmos de Programação
@@ -56,97 +54,124 @@ class DynamicProgrammingKnapsack:
         self.valor_disponivel = valor_disponivel
         self.itens = itens
 
-    def _print_selected_elements(self, dp, profits, weights, capacity):
-        print("Selected weights are: ", end='\n')
+    def _get_elementos_selecionados(self, dp, importancia, valor, capacidade):
         n = len(dp)
-        delta = len(dp) - len(weights)
+        delta = len(dp) - len(valor)
 
-        totalProfit = dp[n - 1][capacity]
+        importancia_maxima = dp[n - 1][capacidade]
         for i in range(n - 1, 0, -1):
-            if totalProfit != dp[i - 1][capacity]:
-                print(str(weights[i - delta]) + " ", end='')
-                # print(self.itens.iloc[0])
-                capacity -= weights[i - delta]
-                totalProfit -= profits[i - delta]
+            if importancia_maxima != dp[i - 1][capacidade]:
+                print(str(valor[i - delta]) + " ", end='')
+                capacidade -= valor[i - delta]
+                importancia_maxima -= importancia[i - delta]
 
-        if totalProfit != 0:
-            print(str(weights[0]) + " ", end='')
-            # print(self.itens.iloc[0])
-        # print()
+        if importancia_maxima != 0:
+            print(str(valor[0]) + " ", end='')
 
-    def _dp_topdown(self, dp, profits, weights, capacity, currentIndex):
-        # base checks
-        if capacity == 0 or currentIndex == 0:
+    # def _dp_topdown(self, dp, importancia, peso, capacidade, indice=0):
+    #     capacidade = int(capacidade)
+    #     # Caso base
+    #     if capacidade <= 0 or indice >= len(importancia):
+    #         return 0
+    #
+    #     # Se um problema similar já foi resolvido, retorna o resultado da tabela memoização
+    #     if dp[indice][capacidade] != -1:
+    #         return dp[indice][capacidade]
+    #
+    #     # Chamada recursiva depois de se escolher o elemento no índice corrente
+    #     # Se o valor do elemento no índice atual excede a capacidade, não é processado
+    #     importancia1 = 0
+    #     if peso[indice] <= capacidade:
+    #         importancia1 = importancia[indice] + self._dp_topdown(dp, importancia, peso, capacidade - peso[indice], indice + 1)
+    #
+    #     # Chamada recursiva depois de se excluir o elemento no índice corrente
+    #     importancia2 = self._dp_topdown(dp, importancia, peso, capacidade, indice + 1)
+    #
+    #     dp[indice][capacidade] = max(importancia1, importancia2)
+    #
+    #     return dp[indice][capacidade]
+
+    def _dp_topdown_pandas(self, dp, importancia, peso, capacidade, indice=0):
+        # Caso base
+        if capacidade <= 0 or indice >= len(importancia):
             return 0
+        elif f"{capacidade:0.2f}" not in dp.columns:
+            dp = pd.concat([dp, pd.DataFrame(np.repeat(-1, len(importancia)), index=[i for i in range(len(self.itens))],
+                                             columns=[f"{capacidade:0.2f}"])], axis=1)
 
-        # if we have already solved a similar problem, return the result from memory
-        if dp[currentIndex - 1][capacity] != -1:
-            return dp[currentIndex - 1][capacity]
+        # Se um problema similar já foi resolvido, retorna o resultado da tabela memoização
+        if dp.iloc[indice][f"{capacidade:0.2f}"] != -1:
+            return dp.iloc[indice][f"{capacidade:0.2f}"]
 
-        # recursive call after choosing the element at the currentIndex
-        # if the weight of the element at currentIndex exceeds the capacity, we
-        # shouldn't process this
-        if weights[currentIndex - 1] > capacity:
-            dp[currentIndex - 1][capacity] = self._dp_topdown(
-                dp, profits, weights, capacity, currentIndex - 1)
+        # Chamada recursiva depois de se escolher o elemento no índice corrente
+        # Se o valor do elemento no índice atual excede a capacidade, não é processado
+        importancia1 = 0
+        if peso[indice] <= capacidade:
+            importancia1 = importancia[indice] + self._dp_topdown_pandas(dp, importancia, peso,
+                                                                         capacidade - peso[indice], indice + 1)
+
+        # Chamada recursiva depois de se excluir o elemento no índice corrente
+        importancia2 = self._dp_topdown_pandas(dp, importancia, peso, capacidade, indice + 1)
+
+        dp.at[indice, f"{capacidade:0.2f}"] = max(importancia1, importancia2)
+
+        return dp.iloc[indice][f"{capacidade:0.2f}"]
+
+    # def _dp_bottomup(self):
+    #     valor = self.itens.valor.tolist()
+    #     importancia = self.itens.importancia.tolist()
+    #     n = len(importancia)
+    #
+    #     # Cria um array bi-dimensional para memoização, cada elemento inicializado com o valor "0"
+    #     K = [[0 for x in range(int(self.valor_disponivel) + 1)] for x in range(n + 1)]
+    #
+    #     # Constroi a tabela K[][]
+    #     for i in range(n + 1):
+    #         for w in range(int(self.valor_disponivel) + 1):
+    #             if i == 0 or w == 0:
+    #                 K[i][w] = 0
+    #             elif valor[i - 1] <= w:
+    #                 K[i][w] = max(importancia[i - 1] + K[i - 1][w - int(valor[i - 1])], K[i - 1][w])
+    #             else:
+    #                 K[i][w] = K[i - 1][w]
+    #
+    #     # self._get_elementos_selecionados(K, importancia, valor, self.valor_disponivel)
+    #
+    #     # Retorna a última célula da tabela K
+    #     return K[n][self.valor_disponivel]
+
+    def _dp_bottomup_pandas(self):
+        # Cria um array bi-dimensional para memoização, cada elemento inicializado com o valor "0"
+        K = pd.DataFrame(np.repeat(0, len(self.itens + 1)), index=[i for i in range(len(self.itens + 1))],
+                         columns=[str(self.valor_disponivel)])
+
+        return "NaN"
+
+    def solucionar(self, bottom_up=True):
+        if bottom_up:
+            retorno = self._dp_bottomup_pandas()
         else:
-            # recursive call after excluding the element at the currentIndex
-            dp[currentIndex - 1][capacity] = max(self._dp_topdown(
-                dp, profits, weights, capacity, currentIndex - 1), profits[currentIndex - 1] + self._dp_topdown(
-                dp, profits, weights, capacity - weights[currentIndex - 1], currentIndex - 1))
-
-        return dp[currentIndex - 1][capacity]
-
-    # code
-    # A Dynamic Programming based Python
-    # Program for 0-1 Knapsack problem
-    # Returns the maximum value that can
-    # be put in a knapsack of capacity W
-    def _dp_bottomup(self):
-        wt = self.itens.valor.tolist()
-        val = self.itens.importancia.tolist()
-        W = self.valor_disponivel
-        n = len(val)
-
-        K = [[0 for x in range(W + 1)] for x in range(n + 1)]
-
-        # Build table K[][] in bottom up manner
-        for i in range(n + 1):
-            for w in range(W + 1):
-                if i == 0 or w == 0:
-                    K[i][w] = 0
-                elif wt[i-1] <= w:
-                    K[i][w] = max(val[i-1]
-                                  + K[i-1][w-wt[i-1]],
-                                  K[i-1][w])
-                else:
-                    K[i][w] = K[i-1][w]
-
-        self._print_selected_elements(K, val, wt, W)
-
-        return K[n][W]
-
-    def solucionar(self, bottomup=True):
-        if bottomup:
-            result = self._dp_bottomup()
-        else:
-            # create a two dimensional array for Memoization, each element is initialized to '-1'
-            dp = [[-1 for x in range(self.valor_disponivel + 1)] for y in range(len(self.itens))]
-            result = self._dp_topdown(dp, self.itens.importancia.tolist(), self.itens.valor.tolist(), self.valor_disponivel, len(self.itens))
-            self._print_selected_elements(dp, self.itens.importancia.tolist(), self.itens.valor.tolist(), self.valor_disponivel)
-        return result
+            # Cria um array bi-dimensional para Memoização, cada elemento inicializado com o valor "-1"
+            # dp = [[-1 for x in range(self.valor_disponivel + 1)] for y in range(len(self.itens))]
+            dp = pd.DataFrame(np.repeat(-1, len(self.itens)), index=[i for i in range(len(self.itens))],
+                              columns=[f"{self.valor_disponivel:0.2f}"])
+            retorno = self._dp_topdown_pandas(dp, self.itens.importancia.tolist(), self.itens.valor.tolist(),
+                                              self.valor_disponivel)
+            # self._get_elementos_selecionados(dp, self.itens.importancia.tolist(), self.itens.valor.tolist(), self.valor_disponivel)
+        return retorno
 
 
-#     0-1 Knapsack Problem using best first branch and limitante_dual method
-#     Returns limitante_primal with list storing the index position of the items in the best solution.
-#     The valor is maximized while staying under the peso limit.
-#     This program uses a priority queue to store the nodes ordered by best limitante_dual,
-#     the node with the highest limitante_dual valor is returned when removing from the priority queue.
-#     The best first approach arrives at an optimal solition faster than breadth first search.
 class BranchAndBoundKnapsack:
+    """
+    Classe que implementa a solução de um Problema de Mochila Binária (0-1 Knapsack Problem) utilizando algoritmo
+    Branch and Bound.
+    """
+
     def __init__(self, valor_disponivel, itens):
         self.valor_disponivel = valor_disponivel
-        self.itens = itens.sort_values(by="importancia_por_valor", ascending=False) # pressupõe a ordenação decrescente
+        # Pressupõe a ordenação decrescente da razão importância/valor
+        # self.itens = itens.sort_values(by="importancia_por_valor", ascending=False)
+        self.itens = itens
 
     def __str__(self):
         return "Branch and Bound"
@@ -156,7 +181,7 @@ class BranchAndBoundKnapsack:
             self.pqueue = []
             self.tamanho = 0
 
-        def inserir(self, node):
+        def enqueue(self, node):
             # Caso seja informado algum nó e o peso dos itens que o compõem esteja acima da capacidade máxima,
             # o nó não será adicionado na fila de prioridade (poda por inviabilidade)
             if node is not None and not node.valor_acima_do_disponivel:
@@ -169,9 +194,9 @@ class BranchAndBoundKnapsack:
                 self.pqueue.insert(i, node)
                 self.tamanho += 1
 
-        def remover(self):
+        def dequeue(self):
             try:
-                # será retornado o último nó que correponde àquele com maior limitante dual encontrado
+                # Será retornado o último nó que correponde àquele com maior limitante dual encontrado
                 node = self.pqueue.pop()
                 self.tamanho -= 1
             except:
@@ -192,6 +217,9 @@ class BranchAndBoundKnapsack:
 
         @property
         def limitante_dual(self):
+            """
+            Função objetivo da solução representada pelo nó.
+            """
             if self._limitante_dual == -1:
                 self._limitante_dual = 0
                 valor_disponivel_restante = self.valor_disponivel
@@ -283,10 +311,10 @@ class BranchAndBoundKnapsack:
         limitante_primal = 0  # Solução ótima encontrada. Neste caso, começa com zero.
         itens_selecionados = []
         if node.limitante_dual > 0:
-            pq.inserir(node)
+            pq.enqueue(node)
 
             while pq.tamanho != 0:
-                node = pq.remover()  # remove node with best limitante_dual
+                node = pq.dequeue()  # remove node with best limitante_dual
 
                 # Antes de ramificar, verifica se existe elemento com limitante dual composto por valor fracionado.
                 # Se existir e ele for maior que o limitante primal (solução ótima já encontrada), o nó é descartado
@@ -294,8 +322,8 @@ class BranchAndBoundKnapsack:
                 if node.indice_fracionado > -1 and node.limitante_dual > limitante_primal:
                     filho1, filho2 = node.ramificar()
 
-                    pq.inserir(filho1)
-                    pq.inserir(filho2)
+                    pq.enqueue(filho1)
+                    pq.enqueue(filho2)
                 elif node.importancia > limitante_primal:
                     limitante_primal = node.importancia
                     itens_selecionados = node.itens_selecionados
@@ -311,36 +339,50 @@ if __name__ == "__main__":
 
     # dados = {"importancia": [60, 100, 120, 50],
     #          "valor": [10., 20., 30., 50.]}
-    # valor_disponivel = 50
+    # valor_disponivel = 50.
 
     # dados = {"importancia": [10, 21, 50, 51],
     #          "valor": [2., 3., 5., 6.]}
-    # valor_disponivel = 7
+    # valor_disponivel = 7.
 
-    # itens = pd.DataFrame(dados)
+    dados = {"importancia": [360, 83, 59, 130, 431, 67, 230, 52, 93, 125, 670, 892, 600, 38, 48, 147,
+                             78, 256, 63, 17, 120, 164, 432, 35, 92, 110, 22, 42, 50, 323, 514, 28,
+                             87, 73, 78, 15, 26, 78, 210, 36, 85, 189, 274, 43, 33, 10, 19, 389, 276,
+                             312],
+             "valor": [7, 0, 30, 22, 80, 94, 11, 81, 70, 64, 59, 18, 0, 36, 3, 8, 15, 42, 9, 0,
+                       42, 47, 52, 32, 26, 48, 55, 6, 29, 84, 2, 4, 18, 56, 7, 29, 93, 44, 71,
+                       3, 86, 66, 31, 65, 0, 79, 20, 65, 52, 13]}
+    valor_disponivel = 850
 
-    valor_disponivel = 6200000
-    itens = pd.read_excel("proposicoes_STI_2023.xlsx", sheet_name="Tratado")
-    itens = itens.filter(["Ação", "GUT", "Unidade Total"]).rename(columns={"Ação": "acao", "GUT": "importancia",
-                                                                           "Unidade Total": "valor"})
-    itens["importancia_por_valor"] = itens.importancia / itens.valor
-    itens["proporcao"] = 0
+itens = pd.DataFrame(dados)
 
-    inicio_processamento = datetime.now()
-    print("Início do processamento:", inicio_processamento)
+# valor_disponivel = 6200000.
+# itens = pd.read_excel("proposicoes_STI_2023.xlsx", sheet_name="Tratado")
+# itens = itens.filter(["Ação", "GUT", "Unidade Total"]).rename(columns={"Ação": "acao", "GUT": "importancia",
+#"Unidade Total": "valor"})
 
-    knapsack = BranchAndBoundKnapsack(valor_disponivel, itens)
-    itens1 = knapsack.solucionar()
+itens["importancia_por_valor"] = itens.importancia / itens.valor
+itens["proporcao"] = 0
 
-    fim_processamento = datetime.now()
-    print("Fim do processamento:", fim_processamento)
-    print("Tempo de processamento:", fim_processamento - inicio_processamento, end="\n\n")
+inicio_processamento = datetime.now()
+print("Início do processamento:", inicio_processamento)
 
-    print("Algoritmo utilizado:", knapsack)
-    print(f"Importância máxima obtida: {itens1.query('proporcao == 1').importancia.sum()}")
-    print(f"Valor máximo obtido: {itens1.query('proporcao == 1').valor.sum()}", end="\n\n")
+# knapsack = BruteForceKnapsack(valor_disponivel, itens)
+# knapsack.solucionar()
+# knapsack = DynamicProgrammingKnapsack(valor_disponivel, itens)
+# print(knapsack.solucionar(bottom_up=False))
+knapsack = BranchAndBoundKnapsack(valor_disponivel, itens)
+itens1 = knapsack.solucionar()
 
-    print("Itens escolhidos:")
-    print(itens1.query("proporcao == 1"), end="\n\n")
-    print("Itens rejeitados:")
-    print(itens1.query("proporcao == 0"))
+fim_processamento = datetime.now()
+print("Fim do processamento:", fim_processamento)
+print("Tempo de processamento:", fim_processamento - inicio_processamento, end="\n\n")
+
+print("Algoritmo utilizado:", knapsack)
+print(f"Importância máxima obtida: {itens1.query('proporcao == 1').importancia.sum()}")
+print(f"Valor máximo obtido: {itens1.query('proporcao == 1').valor.sum()}", end="\n\n")
+
+print("Itens escolhidos:")
+print(itens1.query("proporcao == 1"), end="\n\n")
+print("Itens rejeitados:")
+print(itens1.query("proporcao == 0"))
