@@ -1,202 +1,117 @@
 """Classes base para os algoritmos exatos."""
 
-# Author: Paulo Célio Júnior <pauloceliojr@gmail.com>
-
-import numpy as np
 import pandas as pd
+from ortools.algorithms import pywrapknapsack_solver
+
+from abstract_knapsack import AbstractKnapsackSolver
 
 
-class BruteForceKnapsack:
+class DynamicProgrammingKnapsackSolver(AbstractKnapsackSolver):
     """
-    Classe que implementa a solução de um Problema de Mochila Binária (0-1 Knapsack Problem) utilizando algoritmo
-    de força bruta.
+    Classe que implementa a solução de um Problema da Mochila Binária (0-1 Knapsack Problem) usando algoritmos de Programação
+    Dinâmica. Essa classe encapsula o solver da biblioteca OR-Tools do Google (https://developers.google.com/optimization), que,
+    para os propósitos do trabalho, apresentou desempenho melhor do que a implementação própria.
     """
 
-    def __init__(self, valor_disponivel, itens):
-        self.valor_disponivel = valor_disponivel
-        self.itens = itens
-
-    def _peso(self, item):
-        return item[0]
-
-    def _valor(self, item):
-        return item[1]
-
-    def _powerset(self, items):
-        res = [[]]
-        for item in items:
-            novoset = [r + [item] for r in res]
-            res.extend(novoset)
-        return res
+    def __str__(self):
+        return "Programação Dinâmica"
 
     def solucionar(self):
-        knapsack = []
-        melhor_valor = 0
-        melhor_importancia = 0
-        for item_set in self._powerset(self.itens.filter(["valor", "importancia"]).values.tolist()):
-            set_valor = sum(map(self._peso, item_set))
-            set_importancia = sum(map(self._valor, item_set))
-            if set_importancia > melhor_importancia and set_valor <= self.valor_disponivel:
-                melhor_valor = set_valor
-                melhor_importancia = set_importancia
-                knapsack = item_set
-        print(knapsack)
-        return melhor_importancia, melhor_valor
+        # Cria uma cópia dos itens orçamentários para manipulação interna do método.
+        itens = self.itens.copy()
+
+        # Cria o solver com o parâmetro para programação dinâmica.
+        or_tools_solver = pywrapknapsack_solver.KnapsackSolver(
+            pywrapknapsack_solver.KnapsackSolver.
+            KNAPSACK_DYNAMIC_PROGRAMMING_SOLVER, 'KnapsackExample')
+
+        # Para que solver do OR-Tools funcione, é necessário que sejam passados valores sem casas decimais.
+        # Assim sendo, para incorporar os centavos aos cálculos, multiplicou-se o valor por 100.
+        itens["valor_multiplicado"] = itens.valor * 100
+
+        # Variáveis com os parametros aceitos pelo solver do OR-Tools
+        importancias = itens.importancia.tolist()  # Equivalente ao valor no problema da mochila.
+        valores = [itens.valor_multiplicado.tolist()]  # Equivalente ao peso no problema da mochila.
+
+        # O solver do OR-Tools implementa solução para o problema das mochilas múltiplas.
+        # Desta maneira, faz-se necessário passar uma lista de capacidades de mochilas que, para o estudo de caso,
+        # é apenas uma (valor de orçamento disponível para distribuição).
+        # Da mesma forma que os valores individuais foram multiplicados por 100, o valor disponível (capacidade) também
+        # precisa ser.
+        valores_disponiveis = [int(self.valor_disponivel * 100)]
+
+        # Inicia o solver com os parâmetros do problema e o executa. O método Solve retorna a solução ótima que não será
+        # utilizada aqui dado que serão retornados os itens selecionados e suas importâncias e valores somados pelo
+        # chamador do método.
+        or_tools_solver.Init(importancias, valores, valores_disponiveis)
+        or_tools_solver.Solve()
+
+        # Verifica quais os índices selecionados e marca no dataset de retorno.
+        for i in range(len(importancias)):
+            if or_tools_solver.BestSolutionContains(i):
+                self.itens.at[i, "proporcao"] = 1
+
+        return self.itens
 
 
-class DynamicProgrammingKnapsack:
+class BranchAndBoundKnapsackSolver(AbstractKnapsackSolver):
     """
-    Classe que implementa a solução de um Problema de Mochila Binária (0-1 Knapsack Problem) usando algoritmos de Programação
-    Dinâmica.
-    """
-
-    def __init__(self, valor_disponivel, itens):
-        self.valor_disponivel = valor_disponivel
-        self.itens = itens
-
-    def _get_elementos_selecionados(self, dp, importancia, valor, capacidade):
-        n = len(dp)
-        delta = len(dp) - len(valor)
-
-        importancia_maxima = dp[n - 1][capacidade]
-        for i in range(n - 1, 0, -1):
-            if importancia_maxima != dp[i - 1][capacidade]:
-                print(str(valor[i - delta]) + " ", end='')
-                capacidade -= valor[i - delta]
-                importancia_maxima -= importancia[i - delta]
-
-        if importancia_maxima != 0:
-            print(str(valor[0]) + " ", end='')
-
-    # def _dp_topdown(self, dp, importancia, peso, capacidade, indice=0):
-    #     capacidade = int(capacidade)
-    #     # Caso base
-    #     if capacidade <= 0 or indice >= len(importancia):
-    #         return 0
-    #
-    #     # Se um problema similar já foi resolvido, retorna o resultado da tabela memoização
-    #     if dp[indice][capacidade] != -1:
-    #         return dp[indice][capacidade]
-    #
-    #     # Chamada recursiva depois de se escolher o elemento no índice corrente
-    #     # Se o valor do elemento no índice atual excede a capacidade, não é processado
-    #     importancia1 = 0
-    #     if peso[indice] <= capacidade:
-    #         importancia1 = importancia[indice] + self._dp_topdown(dp, importancia, peso, capacidade - peso[indice], indice + 1)
-    #
-    #     # Chamada recursiva depois de se excluir o elemento no índice corrente
-    #     importancia2 = self._dp_topdown(dp, importancia, peso, capacidade, indice + 1)
-    #
-    #     dp[indice][capacidade] = max(importancia1, importancia2)
-    #
-    #     return dp[indice][capacidade]
-
-    def _dp_topdown_pandas(self, dp, importancia, peso, capacidade, indice=0):
-        # Caso base
-        if capacidade <= 0 or indice >= len(importancia):
-            return 0
-        elif f"{capacidade:0.2f}" not in dp.columns:
-            dp = pd.concat([dp, pd.DataFrame(np.repeat(-1, len(importancia)), index=[i for i in range(len(self.itens))],
-                                             columns=[f"{capacidade:0.2f}"])], axis=1)
-
-        # Se um problema similar já foi resolvido, retorna o resultado da tabela memoização
-        if dp.iloc[indice][f"{capacidade:0.2f}"] != -1:
-            return dp.iloc[indice][f"{capacidade:0.2f}"]
-
-        # Chamada recursiva depois de se escolher o elemento no índice corrente
-        # Se o valor do elemento no índice atual excede a capacidade, não é processado
-        importancia1 = 0
-        if peso[indice] <= capacidade:
-            importancia1 = importancia[indice] + self._dp_topdown_pandas(dp, importancia, peso,
-                                                                         capacidade - peso[indice], indice + 1)
-
-        # Chamada recursiva depois de se excluir o elemento no índice corrente
-        importancia2 = self._dp_topdown_pandas(dp, importancia, peso, capacidade, indice + 1)
-
-        dp.at[indice, f"{capacidade:0.2f}"] = max(importancia1, importancia2)
-
-        return dp.iloc[indice][f"{capacidade:0.2f}"]
-
-    # def _dp_bottomup(self):
-    #     valor = self.itens.valor.tolist()
-    #     importancia = self.itens.importancia.tolist()
-    #     n = len(importancia)
-    #
-    #     # Cria um array bi-dimensional para memoização, cada elemento inicializado com o valor "0"
-    #     K = [[0 for x in range(int(self.valor_disponivel) + 1)] for x in range(n + 1)]
-    #
-    #     # Constroi a tabela K[][]
-    #     for i in range(n + 1):
-    #         for w in range(int(self.valor_disponivel) + 1):
-    #             if i == 0 or w == 0:
-    #                 K[i][w] = 0
-    #             elif valor[i - 1] <= w:
-    #                 K[i][w] = max(importancia[i - 1] + K[i - 1][w - int(valor[i - 1])], K[i - 1][w])
-    #             else:
-    #                 K[i][w] = K[i - 1][w]
-    #
-    #     # self._get_elementos_selecionados(K, importancia, valor, self.valor_disponivel)
-    #
-    #     # Retorna a última célula da tabela K
-    #     return K[n][self.valor_disponivel]
-
-    def _dp_bottomup_pandas(self):
-        # Cria um array bi-dimensional para memoização, cada elemento inicializado com o valor "0"
-        K = pd.DataFrame(np.repeat(0, len(self.itens + 1)), index=[i for i in range(len(self.itens + 1))],
-                         columns=[str(self.valor_disponivel)])
-
-        return "NaN"
-
-    def solucionar(self, bottom_up=True):
-        if bottom_up:
-            retorno = self._dp_bottomup_pandas()
-        else:
-            # Cria um array bi-dimensional para Memoização, cada elemento inicializado com o valor "-1"
-            # dp = [[-1 for x in range(self.valor_disponivel + 1)] for y in range(len(self.itens))]
-            dp = pd.DataFrame(np.repeat(-1, len(self.itens)), index=[i for i in range(len(self.itens))],
-                              columns=[f"{self.valor_disponivel:0.2f}"])
-            retorno = self._dp_topdown_pandas(dp, self.itens.importancia.tolist(), self.itens.valor.tolist(),
-                                              self.valor_disponivel)
-            # self._get_elementos_selecionados(dp, self.itens.importancia.tolist(), self.itens.valor.tolist(), self.valor_disponivel)
-        return retorno
-
-
-class BranchAndBoundKnapsack:
-    """
-    Classe que implementa a solução de um Problema de Mochila Binária (0-1 Knapsack Problem) utilizando algoritmo
+    Classe que implementa a solução de um Problema da Mochila Binária (0-1 Knapsack Problem) utilizando algoritmo
     Branch and Bound.
     """
 
+    # Sobrescrita do método construtor para que haja a ordenação dos itens orçamentários.
     def __init__(self, valor_disponivel, itens):
-        self.valor_disponivel = valor_disponivel
-        # Pressupõe a ordenação decrescente da razão importância/valor
-        # self.itens = itens.sort_values(by="importancia_por_valor", ascending=False)
-        self.itens = itens
+        """
+        Método construtor.
+
+        :param valor_disponivel: Valor do orçamento disponível para distribuição (capacidade da mochila).
+        :param itens: Itens que serão avaliados para compor o orçamento.
+        """
+        super().__init__(valor_disponivel, itens)
+        # O algoritmo Branch and Bound pressupõe a ordenação decrescente da razão importância/valor.
+        self.itens = itens.sort_values(by="importancia_por_valor", ascending=False)
 
     def __str__(self):
         return "Branch and Bound"
 
     class PriorityQueue:
+        """
+        A classe interna PriorityQueue implementa uma fila onde os nós ativos da busca são enfileirados em ordem crescente.
+        O nó retornado será sempre o que pussui o maior limitante dual.
+        """
+
         def __init__(self):
             self.pqueue = []
             self.tamanho = 0
 
         def enqueue(self, node):
-            # Caso seja informado algum nó e o peso dos itens que o compõem esteja acima da capacidade máxima,
-            # o nó não será adicionado na fila de prioridade (poda por inviabilidade)
-            if node is not None and not node.valor_acima_do_disponivel:
+            """
+            Insere na fila um nó de forma ordenada.
+
+            :param node: Nó ativo a ser enfileirado.
+            """
+            # Caso seja informado algum nó e o valor dos itens que o compõem esteja acima do valor disponível,
+            # o nó não será adicionado na fila de prioridade (poda por inviabilidade).
+            if node is not None and not node.is_valor_acima_do_disponivel:
                 i = 0
-                # Ordenação em ordem crescente da fila de acordo com limitante dual
+                # Ordenação em ordem crescente da fila de acordo com limitante dual.
                 while i < len(self.pqueue):
                     if self.pqueue[i].limitante_dual > node.limitante_dual:
                         break
                     i += 1
+                # Insere na nó na fila e incrementa o contador de tamanho.
                 self.pqueue.insert(i, node)
                 self.tamanho += 1
 
         def dequeue(self):
+            """
+            Retira da fila o nó que estiver na última posição (com maior limitante dual).
+
+            :return: Nó retirado da fila.
+            """
             try:
-                # Será retornado o último nó que correponde àquele com maior limitante dual encontrado
+                # Será retornado o último nó que correponde àquele com maior limitante dual encontrado.
                 node = self.pqueue.pop()
                 self.tamanho -= 1
             except:
@@ -205,184 +120,208 @@ class BranchAndBoundKnapsack:
                 return node
 
     class Node:
-        def __init__(self, valor_disponivel, itens):
+        """
+        A classe interna Node implementa a estrutura de dados que armazenará os nós da árvore utilizada pelo algoritmo
+        Branch and Bound.
+        """
+
+        def __init__(self, valor_disponivel: float, itens: pd.DataFrame):
+            """
+            Método construtor.
+
+            :param valor_disponivel: Valor do orçamento disponível para distribuição (capacidade da mochila).
+            :param itens: Itens que serão avaliados para compor o orçamento.
+            """
             self.valor_disponivel = valor_disponivel
+            """
+            Valor do orçamento disponível para distribuição (capacidade da mochila).
+            """
             self.itens = itens
+            """
+            Itens que serão avaliados para compor o orçamento.
+            """
             self.indice_fracionado = -1
+            """
+            Índice do elemento fracionado usado para se obter o valor fracionado do presente nó.Dicionário contendo o caminho de índices dos itens usados para ramificação até o presente nó, no
+            formato: {x: 0 ou 1, ..., y: 0 ou 1}, onde x = índice inicial, y = índice final.
+            """
             self.caminho = {}
+            """
+            Dicionário contendo o caminho de índices dos itens usados para ramificação até o presente nó, no
+            formato: {x: 0 ou 1, ..., y: 0 ou 1}, onde x = índice inicial, y = índice final.
+            """
             self._limitante_dual = -1
             self._importancia = 0
             self._valor = 0
             self._itens_selecionados = []
 
         @property
-        def limitante_dual(self):
+        def limitante_dual(self) -> float:
             """
-            Função objetivo da solução representada pelo nó.
+            Atributo da classe interna Node que implementa a função objetivo da solução representada pelo nó. O
+            limitante dual representa o valor máximo de todos os itens que compõe o nó, incluindo o item fracionado que
+            não coube inteiramente na solução.
             """
+            # Se o limitante dual for igual -1, indica que se trata de um nó novo e executa a função objetivo para se
+            # obter o limitante dual e demais atributos do nó.
             if self._limitante_dual == -1:
                 self._limitante_dual = 0
                 valor_disponivel_restante = self.valor_disponivel
+                # Cria cópia dos itens orçamentários para utilização dentro do método. Em cima da cópia, cria um campo
+                # chamado "obrigatorio" que indicará se o índice deverá compor ou não o cálculo do limitante dual.
                 itens = self.itens.copy()
                 itens["obrigatorio"] = 0
+
+                # Bloco que seleciona, a partir do caminho de índices que foi usado até chegar no nó corrente, quais
+                # itens serão obrigatoriamente excluídos da solução e quais serão mantidos.
+                # Se o índice dentro do caminho estiver marcado como 1, deve ser incluído, caso contrário (0), excluído.
                 if len(self.caminho) > 0:
+                    # Cria lista de índices a serem mantidos.
                     indices_mantidos = itens.index.values.tolist()
+                    # Cria lista de índices a serem excluídos.
                     indices_excluidos = []
                     for chave, valor in self.caminho.items():
                         if valor <= 0:
                             indices_excluidos.append(chave)
                         elif valor >= 1:
                             itens.at[chave, "obrigatorio"] = 1
+                            # Reordena a lista de índices mantidos retirando o item corrente de sua posição atual e o
+                            # incluíndo na primeira posição da lista (índice 0).
                             indices_mantidos.insert(0, indices_mantidos.pop(indices_mantidos.index(chave)))
+                    # Reindexa os itens do dataset com base na lista de índices mantidos que foram inseridos nas
+                    # primeiras posições.
                     itens = itens.reindex(indices_mantidos)
+                    # Exclui os índices marcados como não obrigatórios.
                     itens = itens.drop(indices_excluidos)
 
-                # Aqui serão calculados: limitante dual, valor e peso
+                # Aqui serão calculados: limitante dual, importância e valor. Também são adicionados os itens
+                # selecionados que compõem o cálculo do limitante dual e, caso exista, será armazenado o índice do item
+                # que foi fracionado para compor o valor do limitante dual.
                 for indice, item in itens.iterrows():
-                    # Adiciona os itens até antes de estourar a capacidade restante
+                    # Adiciona os itens até estourar o valor disponível restante. Caso o item seja obrigatorio,
                     if item.valor <= valor_disponivel_restante or item.obrigatorio:
                         valor_disponivel_restante -= item.valor
                         self._importancia += item.importancia
                         self._valor += item.valor
                         self._itens_selecionados.append(indice)
-                    # Se não pudar o item inteiro, adiciona a fração do peso
+                    # Se não couber o item inteiro, adiciona a fração do valor.
                     else:
                         if valor_disponivel_restante > 0:
-                            # Marcação de qual o índice do item fracionário para ramificação dos filhos
+                            # Marcação de qual o índice do item fracionário para ramificação das folhas deste nó.
                             self.indice_fracionado = indice
                             self._limitante_dual = valor_disponivel_restante * item.importancia_por_valor
                         break
 
+                # Atualiza o valor do limitante com o valor existe mais o valor somado das importâncias.
                 self._limitante_dual += self._importancia
+
             return self._limitante_dual
 
         @property
-        def importancia(self):
+        def importancia(self) -> int:
+            """
+            Importância somada da solução contida no nó.
+            """
             _ = self.limitante_dual
 
             return self._importancia
 
         @property
-        def valor(self):
+        def valor(self) -> float:
+            """
+            Valor somado dos itens da solução contida no nó.
+            """
             _ = self.limitante_dual
 
             return self._valor
 
         @property
-        def itens_selecionados(self):
+        def itens_selecionados(self) -> list:
+            """
+            Itens que compõem a solução contida no nó.
+            """
             _ = self.limitante_dual
 
             return self._itens_selecionados
 
         @property
-        def valor_acima_do_disponivel(self):
+        def is_valor_acima_do_disponivel(self) -> bool:
+            """
+            Índica se o valor somado da solução contida no nó é maior do que o valor disponível (capacidade da mochila).
+            """
             return self.valor > self.valor_disponivel
 
         def ramificar(self):
-            # Se existir índice de item com valor fracionado
-            if self.indice_fracionado >= 0:
-                # definindo ramo xi <= 0
-                filho1 = BranchAndBoundKnapsack.Node(self.valor_disponivel, self.itens)
-                filho1.caminho[self.indice_fracionado] = 0  # xi <= 0
-                filho1.caminho.update(self.caminho)
+            """
+            Ramifica o nó em dois nós folhas caso o limitante dual seja composto por valor fracionado de determinado
+            item, correspondente ao índice armazenado no atributo indice_fracionado.
 
-                # definindo ramo xi >= 1
-                filho2 = BranchAndBoundKnapsack.Node(self.valor_disponivel, self.itens)
-                filho2.caminho[self.indice_fracionado] = 1  # xi >= 1
-                filho2.caminho.update(self.caminho)
+            :return: Nó Folha 1, Nó Folha 2
+            """
+            # Se, dentre os índices que compõem a solução armazenada pelo nó, existir índice de item cujo valor
+            # tenha sido fracionado, ainda não se chegou em uma solução inteira (limitante dual composto apenas por
+            # valores que não são frações de um valor inteiro de item) e, portanto, o nó será ramificado em
+            # busca de uma solução inteira.
+            if self.indice_fracionado > -1:
+                # Ramo xi <= 0.
+                folha1 = BranchAndBoundKnapsackSolver.Node(self.valor_disponivel, self.itens)
+                # Uma das folhas deverá desprezar o item com valor fracionado.
+                folha1.caminho[self.indice_fracionado] = 0  # xi <= 0
+                # Atualiza os caminho do nó pra incluir o caminho percorrido nos níveis superiores.
+                folha1.caminho.update(self.caminho)
 
-                return filho1, filho2
+                # Ramo xi >= 1
+                folha2 = BranchAndBoundKnapsackSolver.Node(self.valor_disponivel, self.itens)
+                # A outra folha deverá obrigatoriamente incluir o item com valor fracionado.
+                folha2.caminho[self.indice_fracionado] = 1  # xi >= 1
+                # Atualiza os caminho do nó pra incluir o caminho percorrido nos níveis superiores.
+                folha2.caminho.update(self.caminho)
+
+                return folha1, folha2
 
             return None, None
 
-    def _get_solucao(self, itens_selecionados=[]):
-        solucao = np.repeat(0, len(self.itens))
-
-        if len(itens_selecionados) > 0:
-            for indice in itens_selecionados:
-                solucao[indice] = 1
-
-        return solucao
-
     def solucionar(self):
+        # Cria a fila de prioridade que armazenará os nós ativos.
         pq = self.PriorityQueue()
 
+        # Cria o nó raiz que será ramificado até se encontrar a solução ótima.
         node = self.Node(self.valor_disponivel, self.itens)
-        limitante_primal = 0  # Solução ótima encontrada. Neste caso, começa com zero.
+
+        # Solução ótima encontrada. Neste caso, começa com zero, dado que, até o momento, a solução inicial é a melhor
+        # solução.
+        limitante_primal = 0
+
         itens_selecionados = []
         if node.limitante_dual > 0:
+            # Enfileira o nó raiz.
             pq.enqueue(node)
 
             while pq.tamanho != 0:
-                node = pq.dequeue()  # remove node with best limitante_dual
+                # Remove o nó ativo com o melhor limitante dual.
+                node = pq.dequeue()
 
                 # Antes de ramificar, verifica se existe elemento com limitante dual composto por valor fracionado.
-                # Se existir e ele for maior que o limitante primal (solução ótima já encontrada), o nó é descartado
-                # (poda por limitante)
+                # Se existir e o limitante dual for maior que o limitante primal, continua a ramificação da árvore, caso
+                # contrário, despreza o nó ativo dado que solução melhor já existe (poda por limitante).
                 if node.indice_fracionado > -1 and node.limitante_dual > limitante_primal:
-                    filho1, filho2 = node.ramificar()
+                    # Ramifica o nó corrente. Caso o valor do nó corrente
+                    folha1, folha2 = node.ramificar()
 
-                    pq.enqueue(filho1)
-                    pq.enqueue(filho2)
+                    # Enfileira os nós folhas.
+                    pq.enqueue(folha1)
+                    pq.enqueue(folha2)
+                # Se o valor for inteiro (índice_fracionado == -1) e se sua importância for maior que o limitante
+                # primal, indica que uma melhor solução foi encontrada e atualiza o limitante primal e a lista de itens
+                # selecionados.
                 elif node.importancia > limitante_primal:
                     limitante_primal = node.importancia
                     itens_selecionados = node.itens_selecionados
 
-        solucao = self._get_solucao(itens_selecionados)
-        self.itens["proporcao"] = pd.Series(solucao)
+        # Atualiza o dataframe de itens para indicar os itens que foram selecionados (proporção = 1).
+        self.itens.loc[itens_selecionados, "proporcao"] = 1
+
+        # Reordena o dataset para a ordem original.
+        self.itens.sort_index(inplace=True)
 
         return self.itens
-
-
-if __name__ == "__main__":
-    from datetime import datetime
-
-    # dados = {"importancia": [60, 100, 120, 50],
-    #          "valor": [10., 20., 30., 50.]}
-    # valor_disponivel = 50.
-
-    # dados = {"importancia": [10, 21, 50, 51],
-    #          "valor": [2., 3., 5., 6.]}
-    # valor_disponivel = 7.
-
-    dados = {"importancia": [360, 83, 59, 130, 431, 67, 230, 52, 93, 125, 670, 892, 600, 38, 48, 147,
-                             78, 256, 63, 17, 120, 164, 432, 35, 92, 110, 22, 42, 50, 323, 514, 28,
-                             87, 73, 78, 15, 26, 78, 210, 36, 85, 189, 274, 43, 33, 10, 19, 389, 276,
-                             312],
-             "valor": [7, 0, 30, 22, 80, 94, 11, 81, 70, 64, 59, 18, 0, 36, 3, 8, 15, 42, 9, 0,
-                       42, 47, 52, 32, 26, 48, 55, 6, 29, 84, 2, 4, 18, 56, 7, 29, 93, 44, 71,
-                       3, 86, 66, 31, 65, 0, 79, 20, 65, 52, 13]}
-    valor_disponivel = 850
-
-itens = pd.DataFrame(dados)
-
-# valor_disponivel = 6200000.
-# itens = pd.read_excel("proposicoes_STI_2023.xlsx", sheet_name="Tratado")
-# itens = itens.filter(["Ação", "GUT", "Unidade Total"]).rename(columns={"Ação": "acao", "GUT": "importancia",
-#"Unidade Total": "valor"})
-
-itens["importancia_por_valor"] = itens.importancia / itens.valor
-itens["proporcao"] = 0
-
-inicio_processamento = datetime.now()
-print("Início do processamento:", inicio_processamento)
-
-# knapsack = BruteForceKnapsack(valor_disponivel, itens)
-# knapsack.solucionar()
-# knapsack = DynamicProgrammingKnapsack(valor_disponivel, itens)
-# print(knapsack.solucionar(bottom_up=False))
-knapsack = BranchAndBoundKnapsack(valor_disponivel, itens)
-itens1 = knapsack.solucionar()
-
-fim_processamento = datetime.now()
-print("Fim do processamento:", fim_processamento)
-print("Tempo de processamento:", fim_processamento - inicio_processamento, end="\n\n")
-
-print("Algoritmo utilizado:", knapsack)
-print(f"Importância máxima obtida: {itens1.query('proporcao == 1').importancia.sum()}")
-print(f"Valor máximo obtido: {itens1.query('proporcao == 1').valor.sum()}", end="\n\n")
-
-print("Itens escolhidos:")
-print(itens1.query("proporcao == 1"), end="\n\n")
-print("Itens rejeitados:")
-print(itens1.query("proporcao == 0"))
